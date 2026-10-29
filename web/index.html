@@ -519,8 +519,13 @@
     .package-queue-head .btn { grid-column: 1 / -1; min-width: 0; width: 100%; padding: 10px 12px; white-space: normal; overflow-wrap: anywhere; }
     .package-queue-head h3 { margin: 0; font-size: 18px; overflow-wrap: anywhere; }
     .package-queue-list.console-list { min-height: 0; margin-top: 12px; display: grid; gap: 8px; max-height: none; overflow: visible; padding: 5px; }
-    .package-queue-row { display: flex; gap: 12px; align-items: center; min-width: 0; }
-    .package-queue-row span { flex: 1; min-width: 0; overflow-wrap: anywhere; font-size: 15px; }
+    .package-queue-row { display: flex; gap: 10px; align-items: center; min-width: 0; padding: 10px; border: 1px solid var(--line); border-radius: 12px; background: #101e32; }
+    .package-queue-row.active { border-color: var(--blue); background: #172e48; }
+    .package-queue-row .package-cover { width: 56px; height: 56px; flex: 0 0 56px; border-radius: 8px; }
+    .package-queue-info { flex: 1; min-width: 0; display: grid; gap: 5px; }
+    .package-queue-title { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; font-size: 14px; line-height: 1.3; }
+    .package-queue-meta, .package-queue-size { color: var(--muted); font-size: 12px; line-height: 1.3; overflow-wrap: anywhere; }
+    .package-queue-status { color: var(--blue); font-size: 12px; }
     .btn.package-queue-remove { flex: 0 0 46px; width: 46px; height: 46px; padding: 0; display: inline-flex; align-items: center; justify-content: center; }
     .package-queue-remove svg { width: 22px; height: 22px; pointer-events: none; }
     @media (max-width: 540px) { .package-cover { width: 56px; height: 56px; flex-basis: 56px; } .package-row:not(.package-folder) { flex-wrap: wrap; } .package-actions, .package-actions.source-single { width: 100%; max-width: none; } .package-actions .btn { flex: 1; } }
@@ -529,7 +534,6 @@
     .package-row > .btn { flex-shrink: 0; min-width: 110px; max-width: 40%; white-space: normal; }
     .package-remote { display: grid; gap: 12px; }
     .package-remote h3, .package-remote p { margin: 0; }
-    .package-file { overflow-wrap: anywhere; font-size: 14px; }
     @media (max-width: 850px) { .package-workbench { grid-template-columns: minmax(0, 1fr); } .package-sources { display: grid; align-self: start; grid-template-columns: repeat(2, minmax(0, 1fr)); } .package-queue { position: static; max-height: none; } }
     @media (max-width: 540px) { .package-sources { display: contents; } .package-content { grid-row: 2; } .package-queue { grid-row: 3; } .package-remote { grid-row: 4; } .package-row { gap: 12px; padding: 14px; } .package-row > .btn { min-width: 90px; } }
     .package-actions .source-delete, .package-row > .source-delete { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 46px; width: 46px; min-width: 46px; max-width: 46px; height: 46px; min-height: 46px; padding: 0; align-self: center; }
@@ -927,10 +931,8 @@
           <div class="panel package-remote" id="packageRemotePanel">
             <h3 data-i18n="packageRemote">Stream from computer</h3>
             <p class="subtle console-hint" data-i18n="packageRemoteHint">Keep this page open until installation finishes.</p>
-            <input id="packageFile" type="file" accept=".pkg" hidden>
+            <input id="packageFile" type="file" accept=".pkg" multiple hidden>
             <button class="btn" type="button" id="packageChoose" data-i18n="packageChooseFile">Choose PKG</button>
-            <span class="subtle package-file" id="packageFileName"></span>
-            <button class="btn primary" type="button" id="packageStream" disabled data-i18n="packageStream">Start streaming</button>
           </div>
           <div class="panel package-queue">
             <div class="package-queue-head"><h3 data-i18n="packageQueue">Installation queue</h3><span class="subtle" id="packageQueueCount"></span>
@@ -1257,6 +1259,8 @@
         packageQueueLoading: false,
         packageRequest: 0,
         browserStream: null,
+        browserFiles: [],
+        browserBatchRunning: false,
         pathPicker: null,
         smbConnections: [], smbBusy: false, smbRequest: 0
       };
@@ -1299,8 +1303,8 @@
           packagesHint: "Games, patches, DLC and backports from /data and external drives",
           packageDevices: "Drives and folders",
           packageRemote: "Stream from computer",
-          packageRemoteHint: "Select a PKG on your computer and keep this page open until installation finishes.",
-          packageChooseFile: "Choose PKG",
+          packageRemoteHint: "Select up to 32 PKGs. Games install first, then patches and DLC. Keep this page open until the queue finishes.",
+          packageChooseFile: "Choose PKGs",
           packageStream: "Start streaming",
           packageEmpty: "No PKG files or folders here",
           packageInvalid: "Invalid or unsupported PKG",
@@ -1603,8 +1607,8 @@
           packagesHint: "Игры, патчи, DLC и бэкпорты из /data и с внешних дисков",
           packageDevices: "Диски и папки",
           packageRemote: "Установка с ПК",
-          packageRemoteHint: "Выберите PKG на компьютере и оставьте страницу открытой до завершения установки.",
-          packageChooseFile: "Выбрать PKG",
+          packageRemoteHint: "Выберите до 32 PKG. Сначала устанавливаются игры, затем патчи и DLC. Оставьте страницу открытой до завершения очереди.",
+          packageChooseFile: "Выбрать файлы PKG",
           packageStream: "Начать передачу",
           packageEmpty: "Здесь нет файлов PKG или папок",
           packageInvalid: "Повреждённый или неподдерживаемый PKG",
@@ -1687,7 +1691,7 @@
           saveDataSizeHint: "Файлы этой игры по всем локальным профилям, включая копии в каталоге сохранений.",
           detailSizes: "Размеры данных",
           sourceSize: "Игра / образ",
-          patchSize: "Патчи",
+          patchSize: "Обновление",
           dlcSize: "DLC",
           systemSize: "APP.DB",
           sourceSizeHint: "Размер папки, образа игры или основного файла app.pkg.",
@@ -3100,6 +3104,7 @@
         if (!$("logModal").hidden) $("logTitle").textContent = t(state.logTitleKey);
         renderActivity();
         renderSmbConnections();
+        renderPackageQueue();
         if (persist) {
           try { localStorage.setItem("shadowmount.language", currentLanguage); } catch (_) { /* Keep the in-memory selection. */ }
         }
@@ -4942,7 +4947,7 @@
         entries.filter(entry => !entry.directory && !["folder", "image"].includes(entry.source_type)).forEach(entry => {
           const row = rows.get(entry.path);
           if (!row) return;
-          const installed = Boolean(entry.installed);
+          const installed = Boolean(entry.installed && !entry.replaceable);
           const missing = entry.kind !== "base" && !entry.base_installed;
           const baseQueued = queue.some(item => item.kind === "base" && item.title_id === entry.title_id) ||
             Boolean(state.storageJob?.active && state.storageJob.operation === "install" &&
@@ -4953,9 +4958,9 @@
             Boolean(state.storageJob?.active && state.storageJob.source === entry.path);
           const install = row.querySelector(".package-install"), add = row.querySelector(".package-enqueue");
           install.textContent = t(installed ? "packageInstalled" : missing ? "packageNoBase" : entry.kind === "base" && entry.base_installed ? "packageReplace" : entry.kind === "patch" ? "packageUpdate" : "packageInstall");
-          install.disabled = !entry.installable || installed || missing || queued || Boolean(state.storageJob?.active);
+          install.disabled = !entry.installable || installed || missing || queued || state.browserBatchRunning || state.packageQueueLoading || Boolean(state.storageJob?.active);
           add.textContent = t(queued ? "packageQueued" : "packageEnqueue");
-          add.disabled = !entry.installable || installed || queued || (missing && !baseQueued && !(!state.packageQueue && entry.base_queued)) || queue.length >= 32 || state.packageQueueLoading ||
+          add.disabled = !entry.installable || installed || queued || (missing && !baseQueued && !(!state.packageQueue && entry.base_queued)) || queue.length >= 32 || state.packageQueueLoading || state.browserBatchRunning ||
             Boolean(state.storageJob?.active && state.storageJob.operation === "delete" && !state.storageJob.title_id);
         });
         $("packageList").querySelectorAll(".backport-install").forEach(button => {
@@ -4970,8 +4975,17 @@
           button.parentElement.classList.toggle("source-delete-actions", !button.hidden);
           button.disabled = readOnly || button.dataset.canDelete !== "true" || Boolean(state.storageJob?.active) || queue.length > 0 || state.packageQueueLoading;
         });
-        $("packageQueueStart").disabled = !queue.length || Boolean(state.storageJob?.active) || state.packageQueueLoading;
-        $("packageQueueClear").disabled = !queue.length || state.packageQueueLoading;
+        const browser = state.browserFiles.length > 0;
+        const count = browser ? state.browserFiles.length : queue.length;
+        const running = browser ? state.browserBatchRunning : state.packageQueue?.queue_running;
+        $("packageQueueStart").disabled = !count || running || state.browserBatchRunning || Boolean(state.storageJob?.active) || state.packageQueueLoading;
+        $("packageQueueClear").disabled = count <= (running ? 1 : 0) || state.packageQueueLoading ||
+          (state.browserBatchRunning && !state.browserStream);
+        $("packageQueueList").querySelectorAll(".package-queue-remove").forEach((button, index) => {
+          button.disabled = state.packageQueueLoading || (browser ? state.browserBatchRunning : Boolean(running && index === 0));
+        });
+        $("packageChoose").disabled = playStationBrowser || state.browserBatchRunning || state.packageQueueLoading ||
+          Boolean(state.storageJob?.active || state.packageQueue?.queue_running);
       }
 
       function trashButton(label, action, className) {
@@ -5003,17 +5017,39 @@
         container.append(remove);
       }
 
+      function packageQueueCard(entry, index, onRemove, options = {}) {
+        const row = node("div", "package-queue-row");
+        row.dataset.kind = entry.kind;
+        row.classList.toggle("active", Boolean(options.active));
+        const name = entry.title_name || entry.title_id || entry.name || entry.path?.split("/").pop() || t("unknownGame");
+        const info = node("div", "package-queue-info");
+        const title = node("strong", "package-queue-title", `${index + 1}. ${name}`);
+        title.title = [name, entry.name || entry.path].filter(Boolean).join("\n");
+        info.append(title, node("span", "package-queue-meta", [packageKind(entry.kind), entry.version].filter(Boolean).join(" · ")));
+        if (Number.isFinite(entry.size_bytes) && entry.size_bytes >= 0)
+          info.append(node("span", "package-queue-size", formatBytes(entry.size_bytes)));
+        if (options.active) info.append(node("span", "package-queue-status", t("jobInstalling")));
+        const remove = trashButton(`${t("remove")}: ${name}`, onRemove, "package-queue-remove");
+        remove.disabled = Boolean(options.disabled);
+        row.append(installationCover(entry), info, remove);
+        return row;
+      }
+
       function renderPackageQueue() {
-        const queue = state.packageQueue?.entries || [], list = $("packageQueueList");
+        const browser = state.browserFiles.length > 0;
+        const queue = browser ? state.browserFiles : state.packageQueue?.entries || [], list = $("packageQueueList");
         replaceContent(list);
+        list.dataset.source = browser ? "browser" : "storage";
         $("packageQueueCount").textContent = String(queue.length);
         queue.forEach((entry, index) => {
-          const row = node("div", "package-queue-row");
-          row.append(node("span", "", `${index + 1}. ${entry.title_name || entry.title_id} · ${packageKind(entry.kind)} · ${entry.version || "—"}`));
-          const label = `${t("remove")}: ${entry.title_name || entry.title_id}`;
-          const remove = trashButton(label, () => changePackageQueue("remove", entry.path), "package-queue-remove");
-          row.append(remove);
-          list.append(row);
+          if (browser && entry.icon_size && !entry.icon_url) {
+            try { entry.icon_url = URL.createObjectURL(entry.file.slice(entry.icon_offset, entry.icon_offset + entry.icon_size, "image/png")); }
+            catch (_) { /* Artwork is optional; keep the gamepad placeholder. */ }
+          }
+          const active = browser ? state.browserStream?.file === entry.file : Boolean(state.packageQueue?.queue_running && index === 0);
+          list.append(packageQueueCard(entry, index, () => browser ? removeBrowserPackage(index) : changePackageQueue("remove", entry.path), {
+            disabled: state.packageQueueLoading || (browser ? state.browserBatchRunning : active), active
+          }));
         });
         updatePackageActions();
       }
@@ -5027,14 +5063,18 @@
       }
 
       async function changePackageQueue(action, path) {
-        if (state.packageQueueLoading) return;
+        if (state.packageQueueLoading || state.browserBatchRunning) return;
         const trigger = document.activeElement;
         state.packageQueueLoading = true;
         updatePackageActions();
         try {
           const data = await api("/packages/queue", { action, ...(path ? { path } : {}) });
           if (action === "start") { renderStorageJob(data); scheduleStorageJobPoll(); focusControl($("cancelTransfer")); }
-          else { state.packageQueue = data; renderPackageQueue(); }
+          else {
+            state.packageQueue = data;
+            if (action === "add" && state.browserFiles.length) clearBrowserPackages();
+            else renderPackageQueue();
+          }
         } catch (error) { toast(errorMessage(error), true); }
         finally {
           state.packageQueueLoading = false;
@@ -5301,8 +5341,172 @@
         state.browserStream = null;
         session.controller.abort();
         if (session.socket) session.socket.close();
-        $("packageStream").disabled = !$("packageFile").files.length;
-        $("packageChoose").disabled = playStationBrowser;
+      }
+
+      function clearBrowserPackages() {
+        if (state.browserBatchRunning && !state.browserStream) return;
+        const restoreFocus = document.activeElement === $("packageQueueClear");
+        const keep = state.browserBatchRunning ? 1 : 0;
+        for (const entry of state.browserFiles.splice(keep))
+          if (entry.icon_url) URL.revokeObjectURL(entry.icon_url);
+        renderPackageQueue();
+        if (restoreFocus) focusControl(state.browserBatchRunning ? $("cancelTransfer") : $("packageChoose"));
+      }
+
+      function removeBrowserPackage(index) {
+        const list = $("packageQueueList"), restoreFocus = list.contains(document.activeElement);
+        const [entry] = state.browserFiles.splice(index, 1);
+        if (entry?.icon_url) URL.revokeObjectURL(entry.icon_url);
+        renderPackageQueue();
+        if (restoreFocus) {
+          const buttons = list.querySelectorAll("button:not(:disabled)");
+          focusControl(buttons[Math.min(index, buttons.length - 1)] || $("packageChoose"));
+        }
+      }
+
+      async function readBrowserPackage(file) {
+        const invalid = () => new Error(`${file.name}: ${t("packageInvalid")}`);
+        const read = async (offset, size) => {
+          if (!Number.isSafeInteger(offset) || offset < 0 || offset > file.size - size) throw invalid();
+          const data = await file.slice(offset, offset + size).arrayBuffer();
+          if (data.byteLength !== size) throw invalid();
+          return new DataView(data);
+        };
+        if (file.name.length < 5 || !/\.pkg$/i.test(file.name) || /[\0/\\]/.test(file.name) || new Blob([file.name]).size >= 256 ||
+            !Number.isSafeInteger(file.size) || file.size < 0xa0) throw invalid();
+        let header = await read(0, 0xa0), base = 0;
+        const magic = header.getUint32(0);
+        if (magic === 0x7f464948 || magic === 0x7f4c4948) {
+          if (header.getUint16(6, true) !== (magic === 0x7f4c4948 ? 1 : 3)) throw invalid();
+          const offset = magic === 0x7f4c4948 ? 0x30 : 0x58;
+          base = header.getUint32(offset, true) + header.getUint32(offset + 4, true) * 4294967296;
+          if (base < 0xa0) throw invalid();
+          header = await read(base, 0xa0);
+        }
+        if (header.getUint32(0) !== 0x7f434e54) throw invalid();
+        let contentId = "";
+        for (let i = 0x40; i < 0x64 && header.getUint8(i); ++i) contentId += String.fromCharCode(header.getUint8(i));
+        if (!/^[A-Za-z0-9_-]+$/.test(contentId)) throw invalid();
+        const count = header.getUint32(0x10), table = header.getUint32(0x18);
+        if (!count || count > 1024) throw invalid();
+        const entries = await read(base + table, count * 0x20);
+        let category = "", iconOffset = 0, iconSize = 0;
+        const metadata = { title_name: "", title_id: "", version: "" };
+        const decoder = new TextDecoder();
+        for (let i = 0; i < count; ++i) {
+          const entry = i * 0x20;
+          const id = entries.getUint32(entry), offset = base + entries.getUint32(entry + 0x10);
+          const size = entries.getUint32(entry + 0x14);
+          if (id === 0x1200) {
+            if (size >= 8 && size <= 4 * 1048576 && offset <= file.size - size) {
+              try {
+                const png = await read(offset, 8);
+                if (png.getUint32(0) === 0x89504e47 && png.getUint32(4) === 0x0d0a1a0a) { iconOffset = offset; iconSize = size; }
+              } catch (_) { /* An unreadable cover must not block package selection. */ }
+            }
+            continue;
+          }
+          if (id !== 0x1000 && id !== 0x2000) continue;
+          if (!size || size > 1048576) throw invalid();
+          const data = await read(offset, size);
+          if (id === 0x2000) {
+            let json;
+            try { json = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(data).replace(/\0+$/, "")); }
+            catch (_) { throw invalid(); }
+            if (!json || typeof json !== "object" || Array.isArray(json)) throw invalid();
+            // json-c's eight-level parser also counts scalar property values.
+            const checkDepth = (value, depth = 0) => {
+              if (depth >= 8) throw invalid();
+              if (value && typeof value === "object")
+                for (const key of Object.keys(value)) checkDepth(value[key], depth + 1);
+            };
+            checkDepth(json);
+            if (typeof json.contentId === "string") contentId = json.contentId;
+            if (typeof json.titleId === "string") metadata.title_id = json.titleId.slice(0, 31);
+            const version = typeof json.contentVersion === "string" && json.contentVersion ? json.contentVersion : json.masterVersion;
+            if (typeof version === "string") metadata.version = version.slice(0, 31);
+            const localized = json.localizedParameters;
+            if (localized && typeof localized === "object" && !Array.isArray(localized)) {
+              const preferred = localized[localized.defaultLanguage];
+              const params = preferred && typeof preferred === "object" && !Array.isArray(preferred) ? preferred
+                : Object.values(localized).find(value => value && typeof value === "object" && !Array.isArray(value));
+              if (typeof params?.titleName === "string") metadata.title_name = params.titleName.slice(0, 512);
+            }
+            continue;
+          }
+          const sfo = data;
+          if (size < 20 || sfo.getUint32(0, true) !== 0x46535000) throw invalid();
+          const keys = sfo.getUint32(8, true), values = sfo.getUint32(12, true), fields = sfo.getUint32(16, true);
+          if (fields > (size - 20) / 16 || keys >= size || values >= size) throw invalid();
+          const text = (offset, limit) => {
+            let end = offset;
+            while (end < limit && sfo.getUint8(end)) ++end;
+            return decoder.decode(new Uint8Array(sfo.buffer, sfo.byteOffset + offset, end - offset));
+          };
+          for (let j = 0; j < fields; ++j) {
+            const field = 20 + j * 16, key = keys + sfo.getUint16(field, true);
+            const value = values + sfo.getUint32(field + 12, true), length = sfo.getUint32(field + 4, true);
+            if (key >= size || value > size || length > size - value) continue;
+            const format = sfo.getUint16(field + 2, true);
+            if (format !== 4 && format !== 0x204) continue;
+            const name = text(key, Math.min(size, key + 16));
+            if (name === "CATEGORY") category = text(value, value + Math.min(length, 16)).toLowerCase();
+            else if (name === "TITLE") metadata.title_name = text(value, value + Math.min(length, 512));
+            else if (name === "TITLE_ID" && length <= 32) metadata.title_id = text(value, value + length);
+            else if (name === "CONTENT_ID" && length <= 128) contentId = text(value, value + length);
+            else if (name === "APP_VER") metadata.version = text(value, value + Math.min(length, 32));
+          }
+        }
+        if (!/^[A-Za-z0-9_-]+$/.test(contentId) || contentId.length >= 128) throw invalid();
+        if (!metadata.title_id) metadata.title_id = contentId.match(/-([A-Za-z0-9]{9})_/)?.[1] || "";
+        if (!/^[A-Z]{4}[0-9]{5}$/.test(metadata.title_id) || metadata.title_id.startsWith("NPXS")) throw invalid();
+        const type = header.getUint32(0x74), flags = header.getUint32(0x78), container = header.getUint32(4);
+        const delta = magic === 0x7f4c4948 || (container & 255) === 0x1e || (container >>> 24) === 0x41;
+        const mediaRemaster = type === 0x26 && (flags & 0x40400000) === 0x40400000;
+        if (![0x1a, 0x1b, 0x1c, 0x20, 0x21, 0x26].includes(type) && !delta) throw invalid();
+        const kind = [0x1b, 0x1c, 0x21].includes(type) ? "dlc"
+          : delta || ["gp", "gpd", "ps5dp"].includes(category) || (!mediaRemaster && (flags & 0x40100000)) ? "patch" : "base";
+        const categoryKind = ["gd", "gde", "gdc", "gdp"].includes(category) ? "base"
+          : ["gp", "gpd", "ps5dp"].includes(category) ? "patch" : ["ac", "ps5ac", "dlc"].includes(category) ? "dlc" : kind;
+        if (kind !== categoryKind) throw invalid();
+        return { file, kind, name: file.name, size_bytes: file.size, ...metadata,
+          title_name: metadata.title_name || file.name, icon_offset: iconOffset, icon_size: iconSize };
+      }
+
+      async function selectBrowserPackages() {
+        const files = Array.from($("packageFile").files);
+        $("packageFile").value = "";
+        if (!files.length) return;
+        if (state.browserBatchRunning || state.packageQueueLoading || state.storageJob?.active || state.packageQueue?.queue_running) {
+          toast(t("storageBusy"), true); return;
+        }
+        if (files.length > 32) { toast(t("packageQueueFull"), true); return; }
+        state.browserBatchRunning = true;
+        state.packageQueueLoading = true;
+        let accepted = false;
+        renderPackageQueue();
+        try {
+          const added = [];
+          for (const file of files) {
+            const duplicate = added.some(entry => entry.file.name === file.name &&
+              entry.file.size === file.size && entry.file.lastModified === file.lastModified);
+            if (!duplicate) added.push(await readBrowserPackage(file));
+          }
+          if (!added.length) return;
+          const cleared = await api("/packages/queue", { action: "clear", only_if_idle: true });
+          if (cleared.queue_running || cleared.entries?.length) throw new Error(t("storageBusy"));
+          state.packageQueue = cleared;
+          const rank = { base: 0, patch: 1, dlc: 2 };
+          for (const entry of state.browserFiles)
+            if (entry.icon_url) URL.revokeObjectURL(entry.icon_url);
+          state.browserFiles = added;
+          state.browserFiles.sort((left, right) => rank[left.kind] - rank[right.kind]);
+          accepted = true;
+        } catch (error) { toast(errorMessage(error), true); }
+        finally {
+          state.browserBatchRunning = false; state.packageQueueLoading = false; renderPackageQueue();
+          if (accepted) focusControl($("packageQueueStart"));
+        }
       }
 
       async function pumpPackageRanges(session, client) {
@@ -5417,35 +5621,68 @@
         });
       }
 
-      async function streamPackage() {
-        const file = $("packageFile").files[0];
-        if (!file || state.browserStream) return;
-        if (state.storageJob?.active) { toast(t("storageBusy"), true); return; }
-        if (!/\.pkg$/i.test(file.name) || !Number.isSafeInteger(file.size) || !file.size) {
-          toast(t("packageInvalid"), true); return;
+      async function waitForBrowserPackage(session) {
+        // Closing the source socket only ends transfer. Native installation may
+        // still be finalizing, so only a completed storage job advances the queue.
+        for (;;) {
+          const current = state.storageJob;
+          if (current && current.job_id !== session.id) throw new Error(t("packageStreamLost"));
+          let job = current && !current.active ? current
+            : await api("/games/storage/status", { job_id: session.id });
+          const latest = state.storageJob;
+          if (latest && latest.job_id !== session.id) throw new Error(t("packageStreamLost"));
+          // Progress polling may have published a terminal result while this
+          // request was in flight. Never replace it with an older active reply.
+          if (latest && !latest.active) job = latest;
+          if (job.job_id !== session.id) throw new Error(t("packageStreamLost"));
+          if (job !== latest) renderStorageJob(job);
+          if (!job.active) {
+            reportStorageJob(job);
+            return job;
+          }
+          await new Promise(resolve => setTimeout(resolve, 750));
         }
-        $("packageStream").disabled = $("packageChoose").disabled = true;
+      }
+
+      async function streamPackage() {
+        if (!state.browserFiles.length || state.browserBatchRunning || state.browserStream || state.packageQueueLoading) return;
+        if (state.storageJob?.active) { toast(t("storageBusy"), true); return; }
+        state.browserBatchRunning = true;
+        renderPackageQueue();
         let session;
         try {
-          const job = await api("/packages/stream", { name: file.name, size: file.size });
-          session = { file, token: job.token, id: job.job_id, chunkBytes: job.chunk_bytes || 262144, controller: new AbortController() };
-          state.browserStream = session;
-          renderStorageJob(job);
-          scheduleStorageJobPoll();
-          if (Number.isInteger(job.stream_port) && job.stream_port > 0 && job.stream_port <= 65535)
-            await streamPackageSocket(session, job.stream_port);
-          else await Promise.all(Array.from({ length: 2 }, (_, index) => pumpPackageRanges(session, index + 1)));
-        } catch (error) {
-          if (error.name !== "AbortError") {
-            toast(session ? t("packageStreamLost") : errorMessage(error), true);
-            if (session) {
-              stopBrowserStream(session);
-              try { await api("/games/storage/cancel", { job_id: session.id }); } catch (_) { /* Status polling reports connection loss. */ }
+          while (state.browserFiles.length) {
+            session = null;
+            const file = state.browserFiles[0].file;
+            const job = await api("/packages/stream", { name: file.name, size: file.size });
+            session = { file, token: job.token, id: job.job_id, chunkBytes: job.chunk_bytes || 262144, controller: new AbortController() };
+            state.browserStream = session;
+            renderPackageQueue();
+            renderStorageJob(job);
+            scheduleStorageJobPoll();
+            try {
+              if (Number.isInteger(job.stream_port) && job.stream_port > 0 && job.stream_port <= 65535)
+                await streamPackageSocket(session, job.stream_port);
+              else await Promise.all(Array.from({ length: 2 }, (_, index) => pumpPackageRanges(session, index + 1)));
+            } catch (error) {
+              if (error.name !== "AbortError" || state.browserStream === session) throw error;
             }
+            const result = await waitForBrowserPackage(session);
+            if (result.state !== "completed") break;
+            stopBrowserStream(session);
+            removeBrowserPackage(0);
+            if (result.cancel_requested) break;
+          }
+        } catch (error) {
+          toast(session ? t("packageStreamLost") : errorMessage(error), true);
+          if (session) {
+            stopBrowserStream(session);
+            try { await api("/games/storage/cancel", { job_id: session.id }); } catch (_) { /* Status polling reports connection loss. */ }
           }
         } finally {
           if (session) stopBrowserStream(session);
-          else { $("packageStream").disabled = !$("packageFile").files.length; $("packageChoose").disabled = playStationBrowser; }
+          state.browserBatchRunning = false;
+          renderPackageQueue();
         }
       }
 
@@ -5465,7 +5702,6 @@
           refreshStorage();
           refreshManual();
           renderPackages();
-          renderPackageQueue();
         }
         closeLanguagePicker();
       }
@@ -5669,19 +5905,14 @@
       $("packageHome").addEventListener("click", () => refreshPackages("", true));
       $("packageUp").addEventListener("click", () => refreshPackages(state.packages?.parent || "", true));
       $("packageRefresh").addEventListener("click", () => { refreshPackages(); refreshStorage(); });
-      $("packageQueueStart").addEventListener("click", () => changePackageQueue("start"));
-      $("packageQueueClear").addEventListener("click", () => changePackageQueue("clear"));
+      $("packageQueueStart").addEventListener("click", () => state.browserFiles.length ? streamPackage() : changePackageQueue("start"));
+      $("packageQueueClear").addEventListener("click", () => state.browserFiles.length ? clearBrowserPackages() : changePackageQueue("clear"));
       $("packageChoose").disabled = playStationBrowser;
       $("packageRemotePanel").hidden = playStationBrowser;
       $("packageChoose").addEventListener("click", () => $("packageFile").click());
-      $("packageFile").addEventListener("change", () => {
-        const file = $("packageFile").files[0];
-        $("packageFileName").textContent = file ? `${file.name} · ${formatBytes(file.size)}` : "";
-        $("packageStream").disabled = !file || Boolean(state.browserStream);
-      });
-      $("packageStream").addEventListener("click", streamPackage);
+      $("packageFile").addEventListener("change", selectBrowserPackages);
       window.addEventListener("beforeunload", event => {
-        if (state.browserStream) { event.preventDefault(); event.returnValue = ""; }
+        if (state.browserStream || state.browserBatchRunning) { event.preventDefault(); event.returnValue = ""; }
       });
       $("libraryTab").addEventListener("click", () => switchView("library"));
       $("confirmCancel").addEventListener("click", () => finishConfirmation(false));

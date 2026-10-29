@@ -606,6 +606,30 @@ remains a separate cancelled job. Keep the browser page open until completion.
 
 No staging PKG is saved to storage.
 
+The web interface accepts up to 32 computer files at once and keeps their queue
+in the source browser. It reads bounded PKG headers and CATEGORY metadata to
+order games before patches and DLC, then starts one stream job at a time.
+The web interface has one queue panel and shared start, clear and remove
+controls for both sources. A new browser selection replaces the displayed
+batch and clears the payload queue after all selected PKGs validate. Invalid or
+empty selections and refused queue clearing preserve the previous batch.
+The atomic `only_if_idle` clear prevents replacing a native installation that
+started in another client. Adding a disk/SMB PKG switches the panel back to that
+queue after the add succeeds, releasing any browser file artwork.
+Both sources use the same cards with artwork, title, type, version and size.
+Browser artwork is read from the embedded icon0.png through a file-backed Blob;
+its object URL is released when that queue entry is removed or completes.
+Only a completed native installation advances the queue; source-socket closure
+alone does not. Errors and cancellation stop the queue, retaining the failed or
+cancelled file and remaining entries for manual review. Completed entries are
+removed. The page must stay open for the whole batch; reloading loses this queue.
+If cancellation arrives with a confirmed native completion, the completed entry
+is still removed and its installed content is preserved; the batch stops before
+the next entry. A single-file stream then reports `completed` with
+`cancel_requested=true`, which also prevents the browser from advancing.
+Stream jobs can wait up to 30 seconds for the scanner during preparation,
+with cancellation and rest/shutdown checks, before any native submission.
+
 Compatibility clients can use two concurrent
 `POST /api/v1/packages/stream/request` clients, with
 `{"token":"...","client":1}` or client 2. Each returns an `id`, `offset` and
