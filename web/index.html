@@ -278,6 +278,7 @@
     .transfer-meter.indeterminate .storage-fill { animation: transfer-progress 1.8s ease-in-out infinite alternate; }
     @keyframes transfer-progress { from { transform: translateX(0); } to { transform: translateX(250%); } }
     .transfer-stats { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; margin-top: 8px; color: var(--muted); font-size: 13px; }
+    .transfer-stats bdi { white-space: nowrap; }
     .transfer-stats strong { margin-left: auto; color: var(--text); }
     .operation-popup .btn { flex-shrink: 0; }
     body.transfer-active .toast { bottom: 260px; }
@@ -1076,6 +1077,7 @@
         <span id="transferBytes"></span>
         <span id="transferSpeed"></span>
         <span id="transferElapsed"></span>
+        <span><span data-i18n="remainingTime">Remaining</span>: <bdi id="transferRemaining" dir="ltr">—</bdi></span>
         <strong id="transferPercent"></strong>
       </div>
     </div>
@@ -1399,6 +1401,7 @@
           speed: "Speed",
           perSecond: "/s",
           time: "Time",
+          remainingTime: "Remaining",
           cancel: "Cancel",
           manualDescription: "Direct paths to individual game folders or images",
           add: "Add",
@@ -1703,6 +1706,7 @@
           speed: "Скорость",
           perSecond: "/с",
           time: "Время",
+          remainingTime: "Осталось",
           cancel: "Отменить",
           manualDescription: "Прямые пути к отдельным папкам игр или образам",
           add: "Добавить",
@@ -1916,7 +1920,7 @@
         if (values.length !== translationKeys.length) throw new Error(`Invalid translation catalog: ${locale}`);
         translations[locale] = Object.fromEntries(translationKeys.map((key, index) => [key, values[index]]));
       }
-      const extendedTranslationKeys = ["changeFakelibMode","consoleTools","consoleSections","consoleOverview","consoleSystem","consoleSources","consoleLogs","consoleOverviewHint","consoleSystemHint","consoleNotifications","consoleNetwork","consoleCooling","consoleLibraryHint","consoleMounting","consoleMaintenance","consoleSourcesHint","consoleIndividualGames","consoleLogsHint","consoleKernelHint","consoleRecordLog","consoleSaveHint","back","navigate","controllerHint","confirmation","continueAction","chooseUnpackDestination","deleteAfterUnpack","selectAction","saveDataSize","downloadSize","saveDataSizeHint","detailSizes","sourceSize","patchSize","dlcSize","systemSize","sourceSizeHint","patchSizeHint","dlcSizeHint","systemSizeHint","copyToClipboard","logCopied","clipboardUnavailable","remountConfirm","chooseCopyDestination","noOtherDestinations","chooseMoveDestination","destinationDescription","customDestination","useDestination","totalSize","packagesTab","packagesHint","packageDevices","packageRemote","packageRemoteHint","packageChooseFile","packageStream","packageEmpty","packageInvalid","packageInstall","packageConfirm","packageBase","packageTruncated","operationInstall","jobInstalling","packageStreamLost","packageInstallError","packageBaseMissing","packageInstalled","packageUpdate","packageNoBase","packageEnqueue","packageQueued","packageQueue","packageQueueStart","packageQueueClear","packageQueueFull","packageReplace","browse","installBackport","replaceBackport","backport","unknownGame","deleteBackport","deleteBackportConfirm","baseVersionBeforePatch","noDlc","deletePatch","deleteDlc","deletePatchConfirm","deleteDlcConfirm","patchBadge","smbConnections","smbDescription","smbName","smbPath","smbUsername","smbPassword","smbActive","smbClearPassword","smbPasswordHint","smbSave","smbCheck","smbNew","smbEdit","smbRemove","smbRemoveConfirm","smbChecked","smbSavedOk","sourceDeleteConfirm","sourceDeleteBlocked","newFolder","folderName","createFolder","folderCreated","invalidFolderName","smbInvalid","smbEnabled","smbDisabled","smbEmpty","ejectStorage","ejectStorageConfirm","ejectedStorage","usbDiskBusy","usbEjectUnconfirmed","usbEjectFailed","usbMountChanged","usbMountBusy","usbPartitionBusy","usbImageBusy","smbGuestAccess","smbReadOnly"];
+      const extendedTranslationKeys = ["changeFakelibMode","consoleTools","consoleSections","consoleOverview","consoleSystem","consoleSources","consoleLogs","consoleOverviewHint","consoleSystemHint","consoleNotifications","consoleNetwork","consoleCooling","consoleLibraryHint","consoleMounting","consoleMaintenance","consoleSourcesHint","consoleIndividualGames","consoleLogsHint","consoleKernelHint","consoleRecordLog","consoleSaveHint","back","navigate","controllerHint","confirmation","continueAction","chooseUnpackDestination","deleteAfterUnpack","selectAction","saveDataSize","downloadSize","saveDataSizeHint","detailSizes","sourceSize","patchSize","dlcSize","systemSize","sourceSizeHint","patchSizeHint","dlcSizeHint","systemSizeHint","copyToClipboard","logCopied","clipboardUnavailable","remountConfirm","chooseCopyDestination","noOtherDestinations","chooseMoveDestination","destinationDescription","customDestination","useDestination","totalSize","packagesTab","packagesHint","packageDevices","packageRemote","packageRemoteHint","packageChooseFile","packageStream","packageEmpty","packageInvalid","packageInstall","packageConfirm","packageBase","packageTruncated","operationInstall","jobInstalling","packageStreamLost","packageInstallError","packageBaseMissing","packageInstalled","packageUpdate","packageNoBase","packageEnqueue","packageQueued","packageQueue","packageQueueStart","packageQueueClear","packageQueueFull","packageReplace","browse","installBackport","replaceBackport","backport","unknownGame","deleteBackport","deleteBackportConfirm","baseVersionBeforePatch","noDlc","deletePatch","deleteDlc","deletePatchConfirm","deleteDlcConfirm","patchBadge","smbConnections","smbDescription","smbName","smbPath","smbUsername","smbPassword","smbActive","smbClearPassword","smbPasswordHint","smbSave","smbCheck","smbNew","smbEdit","smbRemove","smbRemoveConfirm","smbChecked","smbSavedOk","sourceDeleteConfirm","sourceDeleteBlocked","newFolder","folderName","createFolder","folderCreated","invalidFolderName","smbInvalid","smbEnabled","smbDisabled","smbEmpty","ejectStorage","ejectStorageConfirm","ejectedStorage","usbDiskBusy","usbEjectUnconfirmed","usbEjectFailed","usbMountChanged","usbMountBusy","usbPartitionBusy","usbImageBusy","smbGuestAccess","smbReadOnly","remainingTime"];
       const extendedTranslationCatalogs = {
         "ja-JP": [
           "選択してモードを切り替え", "本体", "本体の設定項目", "概要",
@@ -1958,7 +1962,8 @@
           "ドライブが変更されたか、取り外されました。再試行する前にストレージ一覧を更新してください。",
           "このドライブを使用するマウントがあります:\n{path}\n関連するゲームをアンマウントするかアプリを閉じて再試行してください。", "このドライブの別のパーティションがマウントされています:\n{path}\nそのパーティションをアンマウントして再試行してください。", "このドライブ上のイメージが接続されています:\n{path}\nライブラリーでそのゲームをアンマウントして再試行してください。",
           "ゲストアクセス",
-          "読み取り専用"
+          "読み取り専用",
+          "残り時間"
         ],
         "fr-FR": [
           "Sélectionner pour changer de mode", "Console", "Rubriques de la console", "Vue d’ensemble",
@@ -2000,7 +2005,8 @@
           "Le disque a changé ou a été déconnecté. Actualisez les stockages avant de réessayer.",
           "Un montage utilise ce disque :\n{path}\nDémontez le jeu associé ou fermez l’application, puis réessayez.", "Une autre partition de ce disque est montée :\n{path}\nDémontez cette partition, puis réessayez.", "Une image de ce disque est attachée :\n{path}\nDémontez son jeu dans la bibliothèque, puis réessayez.",
           "Accès invité",
-          "Lecture seule"
+          "Lecture seule",
+          "Temps restant"
         ],
         "es-ES": [
           "Selecciona para cambiar de modo", "Consola", "Secciones de la consola", "Resumen",
@@ -2042,7 +2048,8 @@
           "El disco ha cambiado o se ha desconectado. Actualiza los almacenamientos antes de volver a intentarlo.",
           "Un montaje está usando este disco:\n{path}\nDesmonta el juego asociado o cierra la aplicación y vuelve a intentarlo.", "Otra partición de este disco está montada:\n{path}\nDesmonta esa partición y vuelve a intentarlo.", "Hay una imagen conectada desde este disco:\n{path}\nDesmonta su juego en la biblioteca y vuelve a intentarlo.",
           "Acceso de invitado",
-          "Solo lectura"
+          "Solo lectura",
+          "Tiempo restante"
         ],
         "de-DE": [
           "Auswählen, um den Modus zu wechseln", "Konsole", "Konsolenbereiche", "Übersicht",
@@ -2084,7 +2091,8 @@
           "Das Laufwerk wurde gewechselt oder getrennt. Aktualisiere vor einem erneuten Versuch die Speicherliste.",
           "Eine Einbindung verwendet dieses Laufwerk:\n{path}\nHänge das zugehörige Spiel aus oder schließe die Anwendung und versuche es erneut.", "Eine andere Partition dieses Laufwerks ist eingebunden:\n{path}\nHänge diese Partition aus und versuche es erneut.", "Ein Abbild auf diesem Laufwerk ist verbunden:\n{path}\nHänge sein Spiel in der Bibliothek aus und versuche es erneut.",
           "Gastzugriff",
-          "Nur lesen"
+          "Nur lesen",
+          "Verbleibend"
         ],
         "it-IT": [
           "Seleziona per cambiare modalità", "Console", "Sezioni della console", "Panoramica",
@@ -2126,7 +2134,8 @@
           "Il disco è cambiato o è stato scollegato. Aggiorna gli archivi prima di riprovare.",
           "Un montaggio utilizza questo disco:\n{path}\nSmonta il gioco associato o chiudi l’applicazione e riprova.", "Un’altra partizione di questo disco è montata:\n{path}\nSmonta quella partizione e riprova.", "Un’immagine su questo disco è collegata:\n{path}\nSmonta il suo gioco nella libreria e riprova.",
           "Accesso ospite",
-          "Sola lettura"
+          "Sola lettura",
+          "Tempo rimanente"
         ],
         "nl-NL": [
           "Selecteer om van modus te wisselen", "Console", "Consoleonderdelen", "Overzicht",
@@ -2168,7 +2177,8 @@
           "De schijf is gewijzigd of losgekoppeld. Vernieuw de opslaglijst voordat je het opnieuw probeert.",
           "Een koppeling gebruikt deze schijf:\n{path}\nOntkoppel de bijbehorende game of sluit de toepassing en probeer opnieuw.", "Een andere partitie van deze schijf is gekoppeld:\n{path}\nOntkoppel die partitie en probeer opnieuw.", "Een image op deze schijf is aangesloten:\n{path}\nOntkoppel de game in de bibliotheek en probeer opnieuw.",
           "Gasttoegang",
-          "Alleen-lezen"
+          "Alleen-lezen",
+          "Resterend"
         ],
         "pt-PT": [
           "Selecionar para mudar de modo", "Consola", "Secções da consola", "Visão geral",
@@ -2210,7 +2220,8 @@
           "O disco mudou ou foi desligado. Atualize os armazenamentos antes de tentar novamente.",
           "Uma montagem está a utilizar este disco:\n{path}\nDesmonte o jogo associado ou feche a aplicação e tente novamente.", "Outra partição deste disco está montada:\n{path}\nDesmonte essa partição e tente novamente.", "Uma imagem deste disco está ligada:\n{path}\nDesmonte o respetivo jogo na biblioteca e tente novamente.",
           "Acesso de convidado",
-          "Só de leitura"
+          "Só de leitura",
+          "Tempo restante"
         ],
         "ko-KR": [
           "선택하여 모드 전환", "콘솔", "콘솔 메뉴", "개요",
@@ -2252,7 +2263,8 @@
           "드라이브가 변경되었거나 연결이 해제되었습니다. 다시 시도하기 전에 저장소 목록을 새로 고치세요.",
           "다음 마운트가 드라이브를 사용 중입니다:\n{path}\n관련 게임을 마운트 해제하거나 앱을 닫은 후 다시 시도하세요.", "이 드라이브의 다른 파티션이 마운트되어 있습니다:\n{path}\n해당 파티션을 마운트 해제한 후 다시 시도하세요.", "이 드라이브의 이미지가 연결되어 있습니다:\n{path}\n라이브러리에서 해당 게임을 마운트 해제한 후 다시 시도하세요.",
           "게스트 액세스",
-          "읽기 전용"
+          "읽기 전용",
+          "남은 시간"
         ],
         "zh-TW": [
           "選取以切換模式", "主機", "主機選單", "概覽",
@@ -2294,7 +2306,8 @@
           "磁碟已變更或中斷連接。請重新整理儲存裝置後再試。",
           "以下掛載正在使用此磁碟：\n{path}\n請卸載相關遊戲或關閉應用程式後重試。", "此磁碟的另一個分割區已掛載：\n{path}\n請卸載該分割區後重試。", "此磁碟上有已連接的映像檔：\n{path}\n請在遊戲庫中卸載對應遊戲後重試。",
           "訪客存取",
-          "唯讀"
+          "唯讀",
+          "剩餘時間"
         ],
         "zh-CN": [
           "选择以切换模式", "主机", "主机菜单", "概览",
@@ -2336,7 +2349,8 @@
           "磁盘已更换或断开连接。请刷新存储设备后重试。",
           "以下挂载正在使用此磁盘：\n{path}\n请卸载相关游戏或关闭应用后重试。", "此磁盘的另一个分区已挂载：\n{path}\n请卸载该分区后重试。", "此磁盘上有已连接的镜像：\n{path}\n请在游戏库中卸载对应游戏后重试。",
           "访客访问",
-          "只读"
+          "只读",
+          "剩余时间"
         ],
         "fi-FI": [
           "Vaihda tilaa valitsemalla", "Konsoli", "Konsolin osiot", "Yleiskatsaus",
@@ -2378,7 +2392,8 @@
           "Levy on vaihtunut tai irrotettu. Päivitä tallennustilaluettelo ennen uutta yritystä.",
           "Liitos käyttää tätä levyä:\n{path}\nIrrota siihen liittyvä peli tai sulje sovellus ja yritä uudelleen.", "Tämän levyn toinen osio on liitetty:\n{path}\nIrrota kyseinen osio ja yritä uudelleen.", "Tämän levyn levykuva on liitetty:\n{path}\nIrrota sen peli kirjastossa ja yritä uudelleen.",
           "Vieraskäyttö",
-          "Vain luku"
+          "Vain luku",
+          "Aikaa jäljellä"
         ],
         "sv-SE": [
           "Välj för att byta läge", "Konsol", "Konsolavsnitt", "Översikt",
@@ -2420,7 +2435,8 @@
           "Enheten har ändrats eller kopplats från. Uppdatera lagringslistan innan du försöker igen.",
           "En montering använder den här enheten:\n{path}\nAvmontera det tillhörande spelet eller stäng appen och försök igen.", "En annan partition på enheten är monterad:\n{path}\nAvmontera den partitionen och försök igen.", "En avbild på enheten är ansluten:\n{path}\nAvmontera dess spel i biblioteket och försök igen.",
           "Gäståtkomst",
-          "Skrivskyddad"
+          "Skrivskyddad",
+          "Tid kvar"
         ],
         "da-DK": [
           "Vælg for at skifte tilstand", "Konsol", "Konsolafsnit", "Oversigt",
@@ -2462,7 +2478,8 @@
           "Drevet er ændret eller frakoblet. Opdatér lagerlisten, før du prøver igen.",
           "En montering bruger dette drev:\n{path}\nAfmontér det tilknyttede spil eller luk appen, og prøv igen.", "En anden partition på dette drev er monteret:\n{path}\nAfmontér den partition, og prøv igen.", "En afbildning på drevet er tilsluttet:\n{path}\nAfmontér dens spil i biblioteket, og prøv igen.",
           "Gæsteadgang",
-          "Skrivebeskyttet"
+          "Skrivebeskyttet",
+          "Tid tilbage"
         ],
         "no-NO": [
           "Velg for å bytte modus", "Konsoll", "Konsollseksjoner", "Oversikt",
@@ -2504,7 +2521,8 @@
           "Disken er endret eller koblet fra. Oppdater lagringslisten før du prøver igjen.",
           "En montering bruker denne disken:\n{path}\nAvmonter det tilknyttede spillet eller lukk appen og prøv igjen.", "En annen partisjon på disken er montert:\n{path}\nAvmonter den partisjonen og prøv igjen.", "Et diskbilde på disken er tilkoblet:\n{path}\nAvmonter spillet i biblioteket og prøv igjen.",
           "Gjestetilgang",
-          "Skrivebeskyttet"
+          "Skrivebeskyttet",
+          "Tid igjen"
         ],
         "pl-PL": [
           "Wybierz, aby zmienić tryb", "Konsola", "Sekcje konsoli", "Przegląd",
@@ -2546,7 +2564,8 @@
           "Dysk został zmieniony lub odłączony. Odśwież listę pamięci przed ponowną próbą.",
           "Punkt montowania korzysta z tego dysku:\n{path}\nOdmontuj powiązaną grę lub zamknij aplikację i spróbuj ponownie.", "Inna partycja tego dysku jest zamontowana:\n{path}\nOdmontuj tę partycję i spróbuj ponownie.", "Obraz na tym dysku jest podłączony:\n{path}\nOdmontuj jego grę w bibliotece i spróbuj ponownie.",
           "Dostęp gościa",
-          "Tylko do odczytu"
+          "Tylko do odczytu",
+          "Pozostało"
         ],
         "pt-BR": [
           "Selecione para alternar o modo", "Console", "Seções do console", "Visão geral",
@@ -2588,7 +2607,8 @@
           "O disco mudou ou foi desconectado. Atualize os armazenamentos antes de tentar novamente.",
           "Uma montagem está usando este disco:\n{path}\nDesmonte o jogo associado ou feche o aplicativo e tente novamente.", "Outra partição deste disco está montada:\n{path}\nDesmonte essa partição e tente novamente.", "Uma imagem deste disco está conectada:\n{path}\nDesmonte seu jogo na biblioteca e tente novamente.",
           "Acesso de convidado",
-          "Somente leitura"
+          "Somente leitura",
+          "Tempo restante"
         ],
         "tr-TR": [
           "Mod değiştirmek için seçin", "Konsol", "Konsol bölümleri", "Genel bakış",
@@ -2630,7 +2650,8 @@
           "Sürücü değişti veya bağlantısı kesildi. Tekrar denemeden önce depolama listesini yenileyin.",
           "Bir bağlama noktası bu sürücüyü kullanıyor:\n{path}\nİlgili oyunun bağlantısını kaldırın veya uygulamayı kapatıp tekrar deneyin.", "Bu sürücünün başka bir bölümü bağlı:\n{path}\nBu bölümün bağlantısını kaldırıp tekrar deneyin.", "Bu sürücüdeki bir imaj bağlı:\n{path}\nKitaplıkta oyunun bağlantısını kaldırıp tekrar deneyin.",
           "Misafir erişimi",
-          "Salt okunur"
+          "Salt okunur",
+          "Kalan süre"
         ],
         "ar-SA": [
           "اختر لتغيير الوضع", "الجهاز", "أقسام الجهاز", "نظرة عامة",
@@ -2672,7 +2693,8 @@
           "تم تغيير القرص أو فصله. حدّث قائمة التخزين قبل المحاولة مجددًا.",
           "تستخدم نقطة تركيب هذا القرص:\n{path}\nألغِ تركيب اللعبة المرتبطة أو أغلق التطبيق ثم أعد المحاولة.", "يوجد قسم آخر مركّب من هذا القرص:\n{path}\nألغِ تركيب هذا القسم ثم أعد المحاولة.", "توجد صورة قرص متصلة من هذا القرص:\n{path}\nألغِ تركيب لعبتها في المكتبة ثم أعد المحاولة.",
           "وصول الضيف",
-          "للقراءة فقط"
+          "للقراءة فقط",
+          "الوقت المتبقي"
         ],
         "cs-CZ": [
           "Vyberte pro změnu režimu", "Konzole", "Sekce konzole", "Přehled",
@@ -2714,7 +2736,8 @@
           "Disk byl změněn nebo odpojen. Před dalším pokusem obnovte seznam úložišť.",
           "Připojení používá tento disk:\n{path}\nOdpojte související hru nebo zavřete aplikaci a zkuste to znovu.", "Je připojen jiný oddíl tohoto disku:\n{path}\nOdpojte tento oddíl a zkuste to znovu.", "Obraz na tomto disku je připojen:\n{path}\nOdpojte jeho hru v knihovně a zkuste to znovu.",
           "Přístup hosta",
-          "Pouze pro čtení"
+          "Pouze pro čtení",
+          "Zbývá"
         ],
         "hu-HU": [
           "Válaszd ki a mód váltásához", "Konzol", "Konzol szakaszai", "Áttekintés",
@@ -2756,7 +2779,8 @@
           "A meghajtó megváltozott vagy leválasztották. Újabb próbálkozás előtt frissítse a tárhelylistát.",
           "Egy csatolás használja ezt a meghajtót:\n{path}\nVálassza le a kapcsolódó játékot, vagy zárja be az alkalmazást, majd próbálja újra.", "A meghajtó másik partíciója csatolva van:\n{path}\nVálassza le ezt a partíciót, majd próbálja újra.", "A meghajtón lévő lemezkép csatlakoztatva van:\n{path}\nVálassza le a játékát a könyvtárban, majd próbálja újra.",
           "Vendéghozzáférés",
-          "Csak olvasható"
+          "Csak olvasható",
+          "Hátralévő idő"
         ],
         "el-GR": [
           "Επιλέξτε για αλλαγή λειτουργίας", "Κονσόλα", "Ενότητες κονσόλας", "Επισκόπηση",
@@ -2798,7 +2822,8 @@
           "Ο δίσκος άλλαξε ή αποσυνδέθηκε. Ανανεώστε τη λίστα αποθήκευσης πριν προσπαθήσετε ξανά.",
           "Μια προσάρτηση χρησιμοποιεί αυτή τη μονάδα:\n{path}\nΑποπροσαρτήστε το σχετικό παιχνίδι ή κλείστε την εφαρμογή και δοκιμάστε ξανά.", "Ένα άλλο διαμέρισμα της μονάδας είναι προσαρτημένο:\n{path}\nΑποπροσαρτήστε το διαμέρισμα και δοκιμάστε ξανά.", "Ένα είδωλο σε αυτή τη μονάδα είναι συνδεδεμένο:\n{path}\nΑποπροσαρτήστε το παιχνίδι του στη βιβλιοθήκη και δοκιμάστε ξανά.",
           "Πρόσβαση επισκέπτη",
-          "Μόνο για ανάγνωση"
+          "Μόνο για ανάγνωση",
+          "Χρόνος που απομένει"
         ],
         "ro-RO": [
           "Selectează pentru a schimba modul", "Consolă", "Secțiunile consolei", "Prezentare generală",
@@ -2840,7 +2865,8 @@
           "Discul s-a schimbat sau a fost deconectat. Reîmprospătează lista de stocare înainte de a încerca din nou.",
           "O montare utilizează acest disc:\n{path}\nDemontează jocul asociat sau închide aplicația și încearcă din nou.", "O altă partiție a discului este montată:\n{path}\nDemontează acea partiție și încearcă din nou.", "O imagine de pe acest disc este atașată:\n{path}\nDemontează jocul ei din bibliotecă și încearcă din nou.",
           "Acces pentru oaspeți",
-          "Doar citire"
+          "Doar citire",
+          "Timp rămas"
         ],
         "th-TH": [
           "เลือกเพื่อเปลี่ยนโหมด", "คอนโซล", "ส่วนต่าง ๆ ของคอนโซล", "ภาพรวม",
@@ -2882,7 +2908,8 @@
           "ไดรฟ์ถูกเปลี่ยนหรือถูกตัดการเชื่อมต่อ โปรดรีเฟรชรายการที่เก็บข้อมูลก่อนลองอีกครั้ง",
           "มีจุดเมานต์ที่ใช้ไดรฟ์นี้อยู่:\n{path}\nยกเลิกการเมานต์เกมที่เกี่ยวข้องหรือปิดแอปแล้วลองอีกครั้ง", "มีพาร์ทิชันอื่นของไดรฟ์นี้เมานต์อยู่:\n{path}\nยกเลิกการเมานต์พาร์ทิชันนั้นแล้วลองอีกครั้ง", "มีอิมเมจจากไดรฟ์นี้เชื่อมต่ออยู่:\n{path}\nยกเลิกการเมานต์เกมนั้นในคลังแล้วลองอีกครั้ง",
           "การเข้าถึงแบบผู้เยี่ยมชม",
-          "อ่านอย่างเดียว"
+          "อ่านอย่างเดียว",
+          "เวลาที่เหลือ"
         ],
         "vi-VN": [
           "Chọn để chuyển chế độ", "Máy chơi game", "Các mục của máy chơi game", "Tổng quan",
@@ -2924,7 +2951,8 @@
           "Ổ đĩa đã thay đổi hoặc bị ngắt kết nối. Làm mới danh sách lưu trữ trước khi thử lại.",
           "Một điểm gắn đang dùng ổ đĩa này:\n{path}\nTháo gắn trò chơi liên quan hoặc đóng ứng dụng rồi thử lại.", "Một phân vùng khác của ổ đĩa này đang được gắn:\n{path}\nTháo gắn phân vùng đó rồi thử lại.", "Một ảnh đĩa trên ổ đĩa này đang được kết nối:\n{path}\nTháo gắn trò chơi của ảnh đĩa trong thư viện rồi thử lại.",
           "Truy cập khách",
-          "Chỉ đọc"
+          "Chỉ đọc",
+          "Thời gian còn lại"
         ],
         "id-ID": [
           "Pilih untuk mengganti mode", "Konsol", "Bagian konsol", "Ringkasan",
@@ -2966,7 +2994,8 @@
           "Drive berubah atau terputus. Segarkan daftar penyimpanan sebelum mencoba lagi.",
           "Sebuah mount menggunakan drive ini:\n{path}\nLepaskan mount game terkait atau tutup aplikasinya, lalu coba lagi.", "Partisi lain pada drive ini terpasang:\n{path}\nLepaskan partisi tersebut, lalu coba lagi.", "Image pada drive ini terhubung:\n{path}\nLepaskan mount game-nya di pustaka, lalu coba lagi.",
           "Akses tamu",
-          "Hanya baca"
+          "Hanya baca",
+          "Waktu tersisa"
         ],
         "uk-UA": [
           "Натисніть, щоб змінити режим", "Приставка", "Розділи приставки", "Огляд",
@@ -3008,7 +3037,8 @@
           "Диск змінився або був від’єднаний. Оновіть список сховищ перед повторною спробою.",
           "Диск використовується точкою монтування:\n{path}\nВідмонтуйте пов’язану гру або закрийте застосунок і повторіть спробу.", "Змонтовано інший розділ цього диска:\n{path}\nВідмонтуйте цей розділ і повторіть спробу.", "З диска підключено образ:\n{path}\nВідмонтуйте його гру в бібліотеці та повторіть спробу.",
           "Гостьовий доступ",
-          "Лише читання"
+          "Лише читання",
+          "Залишилося"
         ],
       };
       for (const [locale, values] of Object.entries(extendedTranslationCatalogs)) {
@@ -3421,6 +3451,16 @@
         return t("operationCopy");
       }
 
+      function storageJobRemainingMs(job) {
+        if (!job.active || job.cancel_requested ||
+            (job.state !== "installing" && job.state !== "transferring")) return null;
+        const total = Number(job.total_bytes), done = Number(job.processed_bytes), speed = Number(job.speed_bytes_per_second);
+        if (!Number.isSafeInteger(total) || !Number.isSafeInteger(done) || !Number.isFinite(speed) ||
+            done <= 0 || total <= done || speed <= 0) return null;
+        const remaining = Math.ceil((total - done) / speed) * 1000;
+        return Number.isSafeInteger(remaining) ? remaining : null;
+      }
+
       function renderStorageJob(job) {
         state.storageJob = job;
         if (state.browserStream && (job.job_id !== state.browserStream.id || !job.active)) stopBrowserStream();
@@ -3467,6 +3507,8 @@
           ? `${formatBytes(Number(job.speed_bytes_per_second))}${t("perSecond")}`
           : "—";
         $("transferElapsed").textContent = formatDuration(job.elapsed_ms);
+        const remaining = storageJobRemainingMs(job);
+        $("transferRemaining").textContent = remaining === null ? "—" : `≈ ${formatDuration(remaining)}`;
         $("transferPercent").textContent = measuring ? "" : `${percent.toFixed(percent < 10 && percent > 0 ? 1 : 0)}%`;
         $("cancelTransfer").disabled = !job.cancellable || job.cancel_requested;
         $("cancelTransfer").textContent = job.cancel_requested ? t("cancelling") : t("cancel");
