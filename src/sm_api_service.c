@@ -5358,9 +5358,19 @@ static void *package_install_thread(void *opaque) {
       if (native_result || native_status.error.code || !strcmp(native_status.status, "error")) { status = EIO; break; }
       if (!native_status.status[0]) { status = EPROTO; break; }
       int installed = 0;
-      if (submission.info.type == SM_PKG_NATIVE_ADDCONT) {
+      if (submission.info.type == SM_PKG_NATIVE_ADDCONT &&
+          (!strcmp(native_status.status, "none") || !strcmp(native_status.status, "completed") ||
+           !strcmp(native_status.status, "playable"))) {
+        phase = "poll_addcont";
         native_result = sceAppInstUtilGetAddcontInstalledStatus(submission.info.content_id, &installed);
+        // A new DLC need not have an installed-content record yet. Keep its
+        // source alive and follow the install task until promotion is confirmed.
+        if (native_result == SM_PKG_NATIVE_CONTENT_NOT_FOUND) {
+          installed = 0;
+          native_result = 0;
+        }
         if (native_result) { status = EIO; break; }
+        phase = "poll";
       }
       if (!strcmp(native_status.status, "none")) {
         // Entitlement-only DLC can have no general download record.
@@ -5408,7 +5418,6 @@ static void *package_install_thread(void *opaque) {
           continue;
         }
       }
-      task_start_deadline_us = 0;
       if (submission.info.type == SM_PKG_NATIVE_PATCH && native_status.total > 0 &&
           native_status.total <= INT64_MAX) {
         if (native_status.downloaded >= native_status.total) patch_completed_total = native_status.total;
@@ -5425,6 +5434,15 @@ static void *package_install_thread(void *opaque) {
           : info.pkg_kind == PKG_KIND_BASE && !ctx.native_progress && ctx.server && sm_pkg_server_complete(ctx.server);
       bool completed = copied && (!strcmp(native_status.status, "completed") ||
           (!strcmp(native_status.status, "playable") && downloaded));
+      // Completion can precede the installed DLC record. Reuse the bounded
+      // visibility window, without limiting a transfer or local copy in progress.
+      if (completed && submission.info.type == SM_PKG_NATIVE_ADDCONT && installed != SM_PKG_ADDCONT_INSTALLED) {
+        phase = "wait_addcont";
+        uint64_t now = monotonic_time_us();
+        if (!now) { status = EIO; break; }
+        if (!task_start_deadline_us) task_start_deadline_us = now + SM_API_PKG_START_TIMEOUT_US;
+        if (now >= task_start_deadline_us) { status = ETIMEDOUT; break; }
+      } else task_start_deadline_us = 0;
       // An installed DLC must not complete its replacement while transferring.
       if (submission.info.type == SM_PKG_NATIVE_ADDCONT) completed = completed && installed == SM_PKG_ADDCONT_INSTALLED;
       if (completed) break;
