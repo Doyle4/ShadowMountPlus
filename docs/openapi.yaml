@@ -1285,7 +1285,7 @@ paths:
       operationId: updatePackageQueue
       summary: Manage the payload-owned sequential local PKG queue
       tags: [Packages]
-      description: Up to 32 pending packages. Queued bases permit adding their patches and DLC. Start uses the shared storage job; errors and cancellation stop the batch and clear remaining items. Browser closure does not stop the batch.
+      description: Up to 32 remaining packages, including the active entry. Queued bases permit adding their patches and DLC. Entries are removed only after successful installation. Errors, cancellation and rest mode stop the batch and retain the interrupted entry and following entries for manual restart. Clear removes waiting entries; the active entry cannot be removed. Start uses the shared storage job. Browser closure does not stop the batch.
       requestBody:
         required: true
         content:
@@ -1295,9 +1295,10 @@ paths:
               properties:
                 action: {type: string, enum: [status, add, remove, clear, start], default: status}
                 path: {type: string, maxLength: 1023, description: Required for add and remove.}
+                only_if_idle: {type: boolean, default: false, description: For clear; refuse without changing entries if a storage job is active or the service is stopping.}
       responses:
         "200":
-          description: Pending queue and batch state.
+          description: Remaining queue (including an active entry) and batch state.
           content:
             application/json:
               schema:
@@ -2463,7 +2464,7 @@ components:
         native_status:
           type: integer
           description: Raw AppInstUtil result; format as unsigned eight-digit hexadecimal for display.
-        queue_count: {type: integer, minimum: 0, maximum: 32}
+        queue_count: {type: integer, minimum: 0, maximum: 32, description: Remaining entries including the active PKG until successful completion.}
         queue_completed: {type: integer, minimum: 0}
         queue_total: {type: integer, minimum: 0}
         queue_running: {type: boolean}
@@ -2721,6 +2722,7 @@ components:
               sdk_version: {type: integer, minimum: 0, maximum: 4294967295, description: Packed SDK from param.json/param.sfo for PKGs and game directories or the backport eboot.bin process parameter; zero when unavailable.}
               kind: {type: string, enum: [base, patch, dlc, unknown]}
               installed: {type: boolean, description: The base game is already installed as a native PKG.}
+              replaceable: {type: boolean, description: Full media application remaster that can replace an existing native app.}
               base_installed: {type: boolean, description: A base game is registered from a PKG or a folder/image source.}
               base_queued: {type: boolean}
               has_icon: {type: boolean}
@@ -2738,7 +2740,7 @@ components:
           maxItems: 32
           items:
             type: object
-            required: [path, title_id, title_name, content_id, version, kind]
+            required: [path, title_id, title_name, content_id, version, kind, size_bytes, has_icon, icon_revision]
             properties:
               path: {type: string}
               title_id: {type: string}
@@ -2747,6 +2749,10 @@ components:
               version: {type: string}
               sdk_version: {type: integer, minimum: 0, maximum: 4294967295, description: Packed param.json/param.sfo SDK version; zero when unavailable.}
               kind: {type: string, enum: [base, patch, dlc, unknown]}
+              size_bytes: {type: integer, format: int64, minimum: 0}
+              replaceable: {type: boolean, description: Full media application remaster that can replace an existing native app.}
+              has_icon: {type: boolean}
+              icon_revision: {type: string, description: Source revision for the package icon endpoint.}
     PackageStreamResponse:
       type: object
       description: StorageJobResponse fields plus the private browser source token and on-demand WebSocket port.

@@ -4789,6 +4789,15 @@ static int enqueue_package_locked(const sm_pkg_info_t *info, bool installed) {
   return 0;
 }
 
+static int clear_package_queue_locked(bool only_if_idle) {
+  if (only_if_idle && (!g_storage_job.accepting || storage_job_is_active(g_storage_job.state) || g_storage_job.pkg_queue_running))
+    return EBUSY;
+  size_t keep = g_storage_job.pkg_queue_running ? 1 : 0;
+  if (g_storage_job.pkg_queue_running) g_storage_job.pkg_queue_total -= g_storage_job.pkg_queue_count - keep;
+  g_storage_job.pkg_queue_count = keep;
+  return 0;
+}
+
 static bool prepare_next_package_locked(void) {
   if (!g_storage_job.pkg_queue_count) return false;
   const sm_pkg_info_t *next = &g_storage_job.pkg_queue[0];
@@ -4802,10 +4811,14 @@ static bool prepare_next_package_locked(void) {
   g_storage_job.pkg_speed = g_storage_job.pkg_sample_us = 0;
   g_storage_job.native_status = 0;
   g_storage_job.state = STORAGE_JOB_PREPARING;
-  --g_storage_job.pkg_queue_count;
-  memmove(g_storage_job.pkg_queue, g_storage_job.pkg_queue + 1,
-      g_storage_job.pkg_queue_count * sizeof(g_storage_job.pkg_queue[0]));
   return true;
+}
+
+static bool add_package_icon_info(struct json_object *item, const sm_pkg_info_t *info) {
+  char revision[100];
+  snprintf(revision, sizeof(revision), "%llx-%llx-%x-%llx", (unsigned long long)info->source_inode,
+      (unsigned long long)info->source_mtime, info->source_mtime_ns, (unsigned long long)info->source_size);
+  return add_json_bool(item, "has_icon", info->icon_size != 0) && add_json_string(item, "icon_revision", revision);
 }
 
 static bool add_package_state(struct json_object *item, const sm_pkg_info_t *info) {
@@ -4814,12 +4827,9 @@ static bool add_package_state(struct json_object *item, const sm_pkg_info_t *inf
   pthread_mutex_lock(&g_storage_job.mutex);
   bool queued_base = package_base_queued_locked(info->title_id);
   pthread_mutex_unlock(&g_storage_job.mutex);
-  char revision[100];
-  snprintf(revision, sizeof(revision), "%llx-%llx-%x-%llx", (unsigned long long)info->source_inode,
-      (unsigned long long)info->source_mtime, info->source_mtime_ns, (unsigned long long)info->source_size);
   return add_json_bool(item, "installed", info->pkg_kind == PKG_KIND_BASE && pkg_installed) &&
     add_json_bool(item, "base_installed", base) && add_json_bool(item, "base_queued", queued_base) &&
-    add_json_bool(item, "has_icon", info->icon_size != 0) && add_json_string(item, "icon_revision", revision);
+    add_package_icon_info(item, info);
 }
 
 static bool handle_package_icon(struct MHD_Connection *connection) {
@@ -5209,7 +5219,27 @@ static void *package_install_thread(void *opaque) {
     const char *error = runtime_mutation_block_reason();
     if (error) status = EBUSY;
     if (!status && package_install_cancelled(&ctx)) status = ECANCELED;
-    if (!status && !scanner && !(scanner = sm_scanner_try_begin_external_mutation())) { status = EBUSY; error = "scanner_busy"; }
+    if (!status && !scanner) {
+      // Each browser file has its own job. Let the preceding file's requested
+      // scan finish before submitting the next native install.
+      uint64_t deadline = 0;
+      while (!(scanner = sm_scanner_try_begin_external_mutation())) {
+        uint64_t now = monotonic_time_us();
+        if (!ctx.stream || (deadline && now >= deadline)) {
+          status = EBUSY;
+          error = "scanner_busy";
+          break;
+        }
+        if (!now) { status = EIO; break; }
+        if (!deadline) deadline = now + SM_API_PKG_START_TIMEOUT_US;
+        status = wait_for_package_poll(&ctx);
+        if (status) break;
+      }
+      if (!status) {
+        error = runtime_mutation_block_reason();
+        if (error) status = EBUSY;
+      }
+    }
     if (!status && !shellcore && !(shellcore = sm_shellcore_try_begin_external_mutation())) { status = EBUSY; error = "runtime_busy"; }
     sm_pkg_info_t info = {0};
     if (!status) {
@@ -5400,7 +5430,9 @@ static void *package_install_thread(void *opaque) {
       if (completed) break;
       status = wait_for_package_poll(&ctx);
     }
-    if (package_install_cancelled(&ctx)) status = ctx.failure ? ctx.failure : ECANCELED;
+    // A confirmed native completion wins over a late stop/source disconnect.
+    // Otherwise CancelInstall could remove the base that just finished.
+    if (status && package_install_cancelled(&ctx)) status = ctx.failure ? ctx.failure : ECANCELED;
     if (status && !error) {
       if (status == EINVAL) error = "pkg_invalid";
       else if (status == ENOENT && info.title_id[0] && info.pkg_kind != PKG_KIND_BASE) error = "pkg_base_missing";
@@ -5454,13 +5486,20 @@ static void *package_install_thread(void *opaque) {
     g_storage_job.pkg_stream = NULL;
     g_storage_job.pkg_server = NULL;
     g_storage_job.pkg_server_port = 0;
-    if (!status && (g_storage_job.cancel_requested || !g_storage_job.accepting ||
-        should_stop_requested() || runtime_sleep_mode_active())) status = ECANCELED;
-    if (!status && g_storage_job.pkg_queue_running) ++g_storage_job.pkg_queue_completed;
+    // Keep the current entry at the head until native completion is confirmed.
+    // Failed/cancelled entries remain available for an explicit restart.
+    if (!status && g_storage_job.pkg_queue_running) {
+      --g_storage_job.pkg_queue_count;
+      memmove(g_storage_job.pkg_queue, g_storage_job.pkg_queue + 1,
+          g_storage_job.pkg_queue_count * sizeof(g_storage_job.pkg_queue[0]));
+      ++g_storage_job.pkg_queue_completed;
+    }
+    if (!status && g_storage_job.pkg_queue_running && g_storage_job.pkg_queue_count &&
+        (g_storage_job.cancel_requested || !g_storage_job.accepting ||
+         should_stop_requested() || runtime_sleep_mode_active())) status = ECANCELED;
     bool next = !status && g_storage_job.pkg_queue_running && prepare_next_package_locked();
     if (!next) {
       g_storage_job.stream_token[0] = 0;
-      if (status && g_storage_job.pkg_queue_running) g_storage_job.pkg_queue_count = 0;
       g_storage_job.pkg_queue_running = false;
     }
     pthread_mutex_unlock(&g_storage_job.mutex);
@@ -5612,6 +5651,10 @@ static void handle_package_install(struct MHD_Connection *connection, struct jso
 static void handle_package_queue(struct MHD_Connection *connection, struct json_object *request) {
   const char *action = package_string(request, "action");
   if (!action) action = "status";
+  bool only_if_idle;
+  if (!get_optional_bool(request, "only_if_idle", false, &only_if_idle)) {
+    send_error_response(connection, 400, EINVAL, "only_if_idle must be a boolean"); return;
+  }
   const char *path = package_string(request, "path");
   sm_pkg_info_t info = {0};
   bool installed = false;
@@ -5654,18 +5697,20 @@ static void handle_package_queue(struct MHD_Connection *connection, struct json_
     reason = status == ENOENT ? "pkg_base_missing" : status == EALREADY ? "pkg_already_installed" :
              status == EEXIST ? "pkg_queued" : status == ENOSPC ? "pkg_queue_full" : "storage_busy";
   } else if (!strcmp(action, "clear")) {
-    if (g_storage_job.pkg_queue_running) g_storage_job.pkg_queue_total -= g_storage_job.pkg_queue_count;
-    g_storage_job.pkg_queue_count = 0;
+    status = clear_package_queue_locked(only_if_idle);
+    if (status) reason = "storage_busy";
   } else if (!strcmp(action, "remove")) {
     size_t index = 0;
     while (index < g_storage_job.pkg_queue_count && (!path || strcmp(path, g_storage_job.pkg_queue[index].path))) ++index;
     if (index == g_storage_job.pkg_queue_count) status = ENOENT;
+    else if (index == 0 && g_storage_job.pkg_queue_running) { status = EBUSY; reason = "storage_busy"; }
     else {
       sm_pkg_info_t removed = g_storage_job.pkg_queue[index];
       bool remove_dependents = removed.pkg_kind == PKG_KIND_BASE && !package_base_installed(removed.title_id, NULL);
       size_t kept = 0, count = g_storage_job.pkg_queue_count;
       for (size_t i = 0; i < count; ++i) {
-        if (i == index || (remove_dependents && !strcmp(g_storage_job.pkg_queue[i].title_id, removed.title_id))) continue;
+        if (i == index || (remove_dependents && !(i == 0 && g_storage_job.pkg_queue_running) &&
+            !strcmp(g_storage_job.pkg_queue[i].title_id, removed.title_id))) continue;
         g_storage_job.pkg_queue[kept++] = g_storage_job.pkg_queue[i];
       }
       g_storage_job.pkg_queue_count = kept;
@@ -5680,6 +5725,8 @@ static void handle_package_queue(struct MHD_Connection *connection, struct json_
   for (size_t i = 0; ready && i < g_storage_job.pkg_queue_count; ++i) {
     struct json_object *item = json_object_new_object();
     ready = item && add_package_info(item, &g_storage_job.pkg_queue[i]) &&
+        add_package_icon_info(item, &g_storage_job.pkg_queue[i]) &&
+        add_json_int(item, "size_bytes", (int64_t)g_storage_job.pkg_queue[i].source_size) &&
         add_json_string(item, "path", g_storage_job.pkg_queue[i].path) && json_object_array_add(entries, item) == 0;
     if (!ready && item) json_object_put(item);
   }

@@ -558,15 +558,24 @@ available during preparation/measurement; recursive deletion is irreversible
 once it starts.
 
 `POST /api/v1/packages/queue` accepts `action` (`status`, `add`, `remove`, `clear`
-or `start`), and `path` for add/remove. The payload owns up to 32 pending local
+or `start`), and `path` for add/remove. The payload owns up to 32 remaining local
 packages. A queued or currently installing base permits enqueueing its patches
 and DLC, which still require an installed base when their turn begins. Duplicate
 packages and bases already installed as PKGs cannot be queued. Removing a queued base
-also removes its dependents if the base is not installed. Clear removes pending
-items; cancellation stops the current batch and clears its remaining items.
-The same happens on a batch failure. No files are deleted or retried.
+also removes its dependents if the base is not installed. The active entry stays
+at the head until installation completes successfully and cannot be removed.
+Clear removes waiting entries and preserves an active installation. Errors,
+cancellation and rest mode stop the batch, retaining the interrupted entry and
+all remaining entries. Completed entries are removed. Restart is manual; no
+files are deleted or retried automatically.
+For source switching, `clear` also accepts `only_if_idle=true`: a busy or stopping
+storage worker returns `storage_busy` without changing any queue entries. The
+default is false, preserving the normal clear-waiting-items behavior.
 Starting returns HTTP 202 with StorageJobResponse; other actions return HTTP 200
-with `queue_running`, `queue_completed`, `queue_total` and pending `entries`.
+with `queue_running`, `queue_completed`, `queue_total` and remaining `entries`
+(including the current entry while the batch is running).
+Entries include `size_bytes`, `has_icon` and `icon_revision` for queue cards;
+artwork uses the same `/packages/icon` endpoint as package browsing.
 The queue runs sequentially, survives browser closure and requests a scan
 after successful installations. It is kept in memory until payload shutdown.
 Storage status adds `queue_count`, `queue_completed`, `queue_total`,
@@ -624,8 +633,8 @@ Malformed system replies fail with `EPROTO`, separately from
 progress rather than total installation duration.
 
 Cancellation stops the current installation; cancelling a patch or DLC does
-not uninstall its base game. Sleep cancels the current installation and any
-remaining queue items. The interrupted installation must be restarted; a new
+not uninstall its base game. Sleep stops the current installation and batch,
+retaining the interrupted and waiting queue entries. The interrupted installation must be restarted; a new
 browser stream receives a new token. Closing the browser disconnects its stream,
 whereas local-file and queued installations survive browser closure.
 
