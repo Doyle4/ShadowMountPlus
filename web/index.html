@@ -56,6 +56,7 @@
     }
 
     .brand { display: flex; align-items: center; }
+    .brand-home { padding: 0; border: 0; background: none; color: inherit; font: inherit; letter-spacing: inherit; text-align: inherit; }
 
     .brand-mark {
       display: block;
@@ -870,7 +871,7 @@
       <div class="brand">
         <img class="brand-mark" src="/favicon.png" width="42" height="42" alt="" aria-hidden="true">
         <div>
-          <h1 data-i18n="pageTitle">ShadowMount+ Library</h1>
+          <h1><button class="brand-home" id="libraryHome" type="button" data-i18n="pageTitle">ShadowMount+ Library</button></h1>
           <p class="subtle brand-meta">
             <span id="version" data-i18n="connecting">Connecting to API…</span><span aria-hidden="true"> · </span><a href="https://github.com/drakmor/ShadowMountPlus/" target="_blank" rel="noopener noreferrer">GitHub</a><span aria-hidden="true"> · </span><a href="https://github.com/drakmor/ShadowMountPlus/#-support-development" target="_blank" rel="noopener noreferrer" data-i18n="supportProject">Support the project</a>
           </p>
@@ -5921,7 +5922,7 @@
       window.addEventListener("beforeunload", event => {
         if (state.browserStream || state.browserBatchRunning) { event.preventDefault(); event.returnValue = ""; }
       });
-      $("libraryTab").addEventListener("click", () => switchView("library"));
+      ["libraryTab", "libraryHome"].forEach(id => $(id).addEventListener("click", () => switchView("library")));
       $("confirmCancel").addEventListener("click", () => finishConfirmation(false));
       $("confirmAccept").addEventListener("click", () => finishConfirmation(true));
       $("confirmModal").addEventListener("click", event => { if (event.target === $("confirmModal")) finishConfirmation(false); });
