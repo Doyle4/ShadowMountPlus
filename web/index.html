@@ -5480,31 +5480,38 @@
         if (state.browserBatchRunning || state.packageQueueLoading || state.storageJob?.active || state.packageQueue?.queue_running) {
           toast(t("storageBusy"), true); return;
         }
-        if (files.length > 32) { toast(t("packageQueueFull"), true); return; }
         state.browserBatchRunning = true;
         state.packageQueueLoading = true;
         let accepted = false;
-        renderPackageQueue();
+        updatePackageActions();
         try {
-          const added = [];
+          const fileKey = file => JSON.stringify([file.name, file.size, file.lastModified]);
+          const seen = new Set(state.browserFiles.map(entry => fileKey(entry.file)));
+          const pending = [];
           for (const file of files) {
-            const duplicate = added.some(entry => entry.file.name === file.name &&
-              entry.file.size === file.size && entry.file.lastModified === file.lastModified);
-            if (!duplicate) added.push(await readBrowserPackage(file));
+            const key = fileKey(file);
+            if (seen.has(key)) continue;
+            if (state.browserFiles.length + pending.length >= 32) throw new Error(t("packageQueueFull"));
+            seen.add(key);
+            pending.push(file);
           }
-          if (!added.length) return;
-          const cleared = await api("/packages/queue", { action: "clear", only_if_idle: true });
-          if (cleared.queue_running || cleared.entries?.length) throw new Error(t("storageBusy"));
-          state.packageQueue = cleared;
+          if (!pending.length) return;
+          const added = [];
+          for (const file of pending) added.push(await readBrowserPackage(file));
+          if (!state.browserFiles.length) {
+            const cleared = await api("/packages/queue", { action: "clear", only_if_idle: true });
+            if (cleared.queue_running || cleared.entries?.length) throw new Error(t("storageBusy"));
+            state.packageQueue = cleared;
+          }
           const rank = { base: 0, patch: 1, dlc: 2 };
-          for (const entry of state.browserFiles)
-            if (entry.icon_url) URL.revokeObjectURL(entry.icon_url);
-          state.browserFiles = added;
+          state.browserFiles.push(...added);
           state.browserFiles.sort((left, right) => rank[left.kind] - rank[right.kind]);
           accepted = true;
         } catch (error) { toast(errorMessage(error), true); }
         finally {
-          state.browserBatchRunning = false; state.packageQueueLoading = false; renderPackageQueue();
+          state.browserBatchRunning = false; state.packageQueueLoading = false;
+          if (accepted) renderPackageQueue();
+          else updatePackageActions();
           if (accepted) focusControl($("packageQueueStart"));
         }
       }
