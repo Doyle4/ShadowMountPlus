@@ -4746,7 +4746,8 @@ static bool add_package_info(struct json_object *item, const sm_pkg_info_t *info
     add_json_string(item, "content_id", info->content_id) &&
     add_json_string(item, "version", info->app_ver) &&
     add_json_int(item, "sdk_version", info->sdk_version) &&
-    add_json_string(item, "kind", sm_pkg_kind_name(info->pkg_kind));
+    add_json_string(item, "kind", sm_pkg_kind_name(info->pkg_kind)) &&
+    add_json_bool(item, "replaceable", info->pkg_kind == PKG_KIND_BASE && sm_pkg_is_media_remaster(info));
 }
 
 static bool package_base_installed(const char *title_id, bool *pkg_installed_out) {
@@ -4772,7 +4773,7 @@ static bool package_base_queued_locked(const char *title_id) {
 }
 
 static int enqueue_package_locked(const sm_pkg_info_t *info, bool installed) {
-  if (info->pkg_kind == PKG_KIND_BASE && installed) return EALREADY;
+  if (info->pkg_kind == PKG_KIND_BASE && installed && !sm_pkg_is_media_remaster(info)) return EALREADY;
   if (info->pkg_kind != PKG_KIND_BASE && !installed &&
       !package_base_queued_locked(info->title_id)) return ENOENT;
   if (g_storage_job.operation == GAME_STORAGE_INSTALL && storage_job_is_active(g_storage_job.state) &&
@@ -5223,7 +5224,12 @@ static void *package_install_thread(void *opaque) {
     if (!status) {
       bool pkg_installed;
       bool base = package_base_installed(info.title_id, &pkg_installed);
-      if (info.pkg_kind == PKG_KIND_BASE && pkg_installed) { status = EEXIST; error = "pkg_already_installed"; }
+      if (info.pkg_kind == PKG_KIND_BASE && pkg_installed) {
+        // Full media remasters install standalone, but ShellCore treats them
+        // as patch tasks when a native base is already present.
+        if (sm_pkg_is_media_remaster(&info)) info.pkg_kind = PKG_KIND_PATCH;
+        else { status = EEXIST; error = "pkg_already_installed"; }
+      }
       else if (info.pkg_kind != PKG_KIND_BASE && !base) status = ENOENT;
     }
     if (!status && sm_shellcore_title_is_protected(info.title_id)) { status = EBUSY; error = "game_active"; }
@@ -5496,7 +5502,7 @@ static void handle_package_install(struct MHD_Connection *connection, struct jso
   if (!streaming && !base && info.pkg_kind != PKG_KIND_BASE) {
     send_operation_error_response(connection, ENOENT, "pkg_base_missing"); return;
   }
-  if (!streaming && pkg_installed && info.pkg_kind == PKG_KIND_BASE) {
+  if (!streaming && pkg_installed && info.pkg_kind == PKG_KIND_BASE && !sm_pkg_is_media_remaster(&info)) {
     send_operation_error_response(connection, EEXIST, "pkg_already_installed"); return;
   }
   pthread_mutex_lock(&g_storage_job.mutex);

@@ -506,6 +506,11 @@ Valid entries also include `installed` (base packages installed as native PKGs),
 `base_installed`, `base_queued`, `has_icon` and `icon_revision`. A folder/image
 registration counts as `base_installed` but not `installed`: its base PKG can
 be installed or queued. Direct patch/DLC installation requires an installed base.
+PS5 media application PKGs (`content_type=0x26`) are supported. A full media
+remaster is classified as a base source and has `replaceable=true`: it can be
+installed standalone or queued even when the native app is installed. The
+worker follows ShellCore's patch task when replacing an existing native app,
+including patch progress and cancellation without uninstalling that base.
 
 `GET /api/v1/packages/icon?path=...&v=...` returns the embedded icon0.png from a
 permitted PKG, limited to 4 MiB. For a game directory, add `source_type=folder`
