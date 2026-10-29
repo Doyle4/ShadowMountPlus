@@ -453,7 +453,8 @@ static bool rebuild_scanner_watch_fd_index_with_count(size_t watch_count) {
   while (needed_capacity < (watch_count * 2u))
     needed_capacity *= 2u;
 
-  if (g_scanner_watch_fd_index_capacity != needed_capacity) {
+  // Retain capacity while roots are removed and registered again.
+  if (g_scanner_watch_fd_index_capacity < needed_capacity) {
     size_t *new_index =
         realloc(g_scanner_watch_fd_index, needed_capacity * sizeof(*new_index));
     if (!new_index) {

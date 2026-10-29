@@ -125,6 +125,12 @@ supported. Shares are contacted only for explicit browsing, checks and transfers
 
 Building requires the PS5 payload SDK's `libsmb2` headers and static library,
 in addition to the existing dependencies. See [SMB notices](licenses/SMB-NOTICES.txt).
+The first `make` also downloads and builds a checksum-pinned json-c 0.19 in
+`.deps/json-c` (Python 3, CMake and patch are required). This private library
+includes upstream fixes for container leaks with `NDEBUG`; the SDK's existing
+json-c archive is not used. Local builds and CI use the same dependency.
+PS5's placeholder locale APIs are disabled for JSON parsing to avoid leaking
+locale handles and sharing mutable locale state between API workers.
 
 ## Recommended FS choice
 

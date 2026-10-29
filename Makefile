@@ -6,7 +6,10 @@ BUILD_TIME := $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 
 # Compiler and dependency flags
 HOMEBREW_ROOT := $(PS5_PAYLOAD_SDK)/target/user/homebrew
-HOMEBREW_CFLAGS := -I$(HOMEBREW_ROOT)/include
+JSON_C_PREFIX := $(CURDIR)/.deps/json-c
+JSON_C_LIB := $(JSON_C_PREFIX)/lib/libjson-c.a
+JSON_C_OBJS := src/sm_api_service.o src/sm_appdb.o src/sm_gameinfo.o src/sm_pkg.o src/sm_smb.o
+HOMEBREW_CFLAGS := -I$(JSON_C_PREFIX)/include -I$(HOMEBREW_ROOT)/include
 MHD_LIB := $(HOMEBREW_ROOT)/lib/libmicrohttpd.a
 PNG_LIB := $(HOMEBREW_ROOT)/lib/libpng16.a
 JPEG_LIB := $(HOMEBREW_ROOT)/lib/libturbojpeg.a
@@ -15,12 +18,13 @@ SMB_LIB := $(HOMEBREW_ROOT)/lib/libsmb2.a
 CFLAGS := -O3 -flto=thin -DNDEBUG -ffunction-sections -fdata-sections -Wall -Wextra -Wstrict-prototypes -Wmissing-prototypes -Werror=strict-prototypes -Werror=missing-prototypes -D_BSD_SOURCE -std=gnu11 -Iinclude -Isrc
 CFLAGS += -DSHADOWMOUNT_VERSION=\"$(VERSION_TAG)\"
 CFLAGS += -DSM_VFS_ENABLED
+CFLAGS += -I$(JSON_C_PREFIX)/include
 
 # Linker
 LDFLAGS := -flto=thin -Wl,--gc-sections
 
 # Libraries
-LIBS := -lSceNotification -lSceSystemService -lSceUserService -lSceAppInstUtil -lSceNet -lSceSsl -lSceHttp -lSceIpmi -lsqlite3 $(HOMEBREW_ROOT)/lib/libjson-c.a $(MHD_LIB) $(PNG_LIB) $(JPEG_LIB) $(ZLIB_LIB) $(SMB_LIB) -lpthread -lm
+LIBS := -lSceNotification -lSceSystemService -lSceUserService -lSceAppInstUtil -lSceNet -lSceSsl -lSceHttp -lSceIpmi -lsqlite3 $(JSON_C_LIB) $(MHD_LIB) $(PNG_LIB) $(JPEG_LIB) $(ZLIB_LIB) $(SMB_LIB) -lpthread -lm
 PS5_SCE_STUBS_DIR ?= $(PS5_PAYLOAD_SDK)/src/sce_stubs
 KERNEL_SYS_STUB_SO := src/libkernel_sys_ext.so
 KERNEL_SYS_STUB_SRCS := $(PS5_SCE_STUBS_DIR)/libkernel_sys.c src/libkernel_sys_ext.c
@@ -36,12 +40,21 @@ L10N_CATALOGS := $(wildcard include/lang/*.inc)
 # Targets
 all: shadowmountplus.elf
 
+.PHONY: json-c
+json-c: $(JSON_C_LIB)
+
+# Validate SDK/options and installed headers; cache hits leave the archive intact.
+$(JSON_C_LIB): FORCE tools/build_ps5_json_c.py patches/json-c-0.19-release-free.patch
+	env -u MAKEFLAGS -u MFLAGS python3 tools/build_ps5_json_c.py --prefix "$(JSON_C_PREFIX)" --sdk "$(PS5_PAYLOAD_SDK)"
+
+$(JSON_C_OBJS): $(JSON_C_LIB)
+
 usb-info.elf: tools/usb_info.c
 	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $< -lSceNotification
 	$(PS5_PAYLOAD_SDK)/bin/prospero-strip --strip-all $@
 
 # Build Daemon
-shadowmountplus.elf: $(OBJS) $(KERNEL_SYS_STUB_SO)
+shadowmountplus.elf: $(OBJS) $(KERNEL_SYS_STUB_SO) $(JSON_C_LIB)
 	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(OBJS) $(KERNEL_SYS_STUB_SO) $(LIBS)
 	$(PS5_PAYLOAD_SDK)/bin/prospero-strip --strip-all $@
 
